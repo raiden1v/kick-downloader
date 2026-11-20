@@ -30,15 +30,22 @@ class DownloadRequest(BaseModel):
 
 def parse_time(value):
     parts = value.split(":")
+
     if not all(re.fullmatch(r"\d+", p) for p in parts):
         raise ValueError("Tempo inválido")
 
     if len(parts) == 1:
         return int(parts[0])
+
     if len(parts) == 2:
         return int(parts[0]) * 60 + int(parts[1])
+
     if len(parts) == 3:
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        return (
+            int(parts[0]) * 3600
+            + int(parts[1]) * 60
+            + int(parts[2])
+        )
 
     raise ValueError("Use HH:MM:SS, MM:SS ou segundos")
 
@@ -59,24 +66,35 @@ def download_video(data: DownloadRequest):
     parsed = urlparse(url)
 
     host = (parsed.hostname or "").lower()
+
     if parsed.scheme != "https" or not (
         host == "kick.com" or host.endswith(".kick.com")
     ):
-        raise HTTPException(400, "Informe um link HTTPS válido da Kick.")
+        raise HTTPException(
+            status_code=400,
+            detail="Informe um link HTTPS válido da Kick."
+        )
 
     if bool(data.start) != bool(data.end):
-        raise HTTPException(400, "Informe o início e o fim do trecho.")
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o início e o fim do trecho."
+        )
 
     start = end = None
+
     if data.start and data.end:
         try:
             start = parse_time(data.start)
             end = parse_time(data.end)
         except ValueError as exc:
-            raise HTTPException(400, str(exc))
+            raise HTTPException(status_code=400, detail=str(exc))
 
         if start < 0 or end <= start or end - start > 3600:
-            raise HTTPException(400, "O trecho deve ter até 60 minutos.")
+            raise HTTPException(
+                status_code=400,
+                detail="O trecho deve ter até 60 minutos."
+            )
 
     temp_dir = Path(tempfile.mkdtemp(prefix="kick-download-"))
 
@@ -98,16 +116,20 @@ def download_video(data: DownloadRequest):
         ]
 
         if not files:
-            raise RuntimeError("Não foi possível localizar o vídeo.")
+            raise RuntimeError(
+                "Não foi possível localizar o vídeo."
+            )
 
         source = max(files, key=lambda f: f.stat().st_size)
         output = temp_dir / "kick-video.mp4"
 
         if start is not None:
             duration = end - start
+
             subprocess.run(
                 [
-                    "ffmpeg", "-y",
+                    "ffmpeg",
+                    "-y",
                     "-ss", str(start),
                     "-i", str(source),
                     "-t", str(duration),
@@ -126,19 +148,27 @@ def download_video(data: DownloadRequest):
             media_type="video/mp4",
             filename="kick-video.mp4",
             background=BackgroundTask(
-                shutil.rmtree, temp_dir, ignore_errors=True
+                shutil.rmtree,
+                temp_dir,
+                ignore_errors=True
             ),
         )
 
     except HTTPException:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
+
     except Exception:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(
-            500,
-            "Não foi possível processar o vídeo. Verifique o link e tente novamente."
+            status_code=500,
+            detail=(
+                "Não foi possível processar o vídeo. "
+                "Verifique o link e tente novamente."
+            )
         )
+
+
 @app.post("/api/live-capture")
 def capture_live(data: DownloadRequest):
     raise HTTPException(
@@ -148,8 +178,3 @@ def capture_live(data: DownloadRequest):
             "fonte de transmissão autorizada e acessível."
         ),
     )
-
-
-
-
-   
