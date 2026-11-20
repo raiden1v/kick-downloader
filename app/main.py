@@ -142,7 +142,7 @@ def download_video(data: DownloadRequest):
 
 
 
-def capture_live(data: DownloadRequest):
+
     raise HTTPException(
         501,
         "A captura ao vivo ainda não está disponível. "
