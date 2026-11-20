@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kick Downloader</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101410;color:white;font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.container{background:#1b241d;padding:35px;border-radius:18px;width:100%;max-width:520px;box-shadow:0 10px 40px #0008}
+h1{text-align:center;color:#53e38a}
+p{text-align:center;color:#bbb}
+label{display:block;margin:18px 0 7px}
+input{width:100%;padding:14px;border:1px solid #46534a;border-radius:9px;background:#101410;color:white;font-size:15px}
+button{width:100%;padding:15px;background:#53e38a;color:#102016;border:0;border-radius:9px;font-weight:bold;font-size:16px;margin-top:22px;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.status{text-align:center;margin-top:18px;color:#53e38a;overflow-wrap:anywhere}
+small{color:#aaa}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>⬇ Kick Downloader</h1>
+<p>Baixe vídeos da Kick ou escolha um trecho específico.</p>
+
+<form id="form">
+<label>Link do vídeo</label>
+<input id="url" type="url" placeholder="Cole aqui o link da Kick" required>
+
+<label>Início do trecho (opcional)</label>
+<input id="start" placeholder="Ex.: 00:01:30">
+
+<label>Fim do trecho (opcional)</label>
+<input id="end" placeholder="Ex.: 00:05:00">
+
+<small>Deixe os dois campos de tempo vazios para baixar o vídeo completo.</small>
+
+<button id="button" type="submit">BAIXAR VÍDEO</button>
+</form>
+
+<div class="status" id="status"></div>
+</div>
+
+<script>
+const form = document.getElementById("form");
+const button = document.getElementById("button");
+const statusBox = document.getElementById("status");
+
+form.addEventListener("submit", async (event) => {
+ event.preventDefault();
+
+ const url = document.getElementById("url").value.trim();
+ const start = document.getElementById("start").value.trim();
+ const end = document.getElementById("end").value.trim();
+
+ if (Boolean(start) !== Boolean(end)) {
+   statusBox.textContent = "Preencha o início e o fim do trecho.";
+   return;
+ }
+
+ button.disabled = true;
+ button.textContent = "PROCESSANDO...";
+ statusBox.textContent = "Aguarde, estamos processando seu vídeo.";
+
+ try {
+   const response = await fetch("/api/download", {
+     method: "POST",
+     headers: {"Content-Type": "application/json"},
+     body: JSON.stringify({
+       url,
+       start: start || null,
+       end: end || null
+     })
+   });
+
+   if (!response.ok) {
+     const error = await response.json();
+     throw new Error(error.detail || "Não foi possível baixar o vídeo.");
+   }
+
+   const blob = await response.blob();
+   const downloadUrl = URL.createObjectURL(blob);
+   const link = document.createElement("a");
+   link.href = downloadUrl;
+   link.download = "kick-video.mp4";
+   link.click();
+   URL.revokeObjectURL(downloadUrl);
+
+   statusBox.textContent = "Download iniciado!";
+ } catch (error) {
+   statusBox.textContent = error.message;
+ } finally {
+   button.disabled = false;
+   button.textContent = "BAIXAR VÍDEO";
+ }
+});
+</script>
+</body>
+</html>
