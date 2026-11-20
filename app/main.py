@@ -133,5 +133,12 @@ def download_video(data: DownloadRequest):
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(
             500,
+            @app.post("/api/live-capture")
+def capture_live(data: DownloadRequest):
+    raise HTTPException(
+        501,
+        "A captura ao vivo ainda não está disponível. "
+        "É necessário configurar uma fonte de transmissão autorizada."
+    )
             "Não foi possível processar o vídeo. Verifique o link e tente novamente."
         )
