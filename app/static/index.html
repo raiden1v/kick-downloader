@@ -38,7 +38,9 @@ small{color:#aaa}
 
 <button id="button" type="submit">BAIXAR VÍDEO</button>
 </form>
-
+<button id="liveButton" type="button" onclick="capturarLive()">
+  CAPTURAR LIVE AO VIVO
+</button>
 <div class="status" id="status"></div>
 </div>
 
@@ -95,6 +97,31 @@ form.addEventListener("submit", async (event) => {
    button.textContent = "BAIXAR VÍDEO";
  }
 });
+ async function capturarLive() {
+  const url = document.getElementById("url").value.trim();
+  const start = document.getElementById("start").value.trim();
+  const end = document.getElementById("end").value.trim();
+  const liveButton = document.getElementById("liveButton");
+
+  if (!url) {
+    statusBox.textContent = "Cole o link da transmissão da Kick.";
+    return;
+  }
+
+  if (!start || !end) {
+    statusBox.textContent = "Informe o início e o fim da captura.";
+    return;
+  }
+
+  liveButton.disabled = true;
+  liveButton.textContent = "CAPTURANDO...";
+
+  statusBox.textContent =
+    "Solicitação de captura ao vivo ainda precisa ser conectada ao backend.";
+
+  liveButton.disabled = false;
+  liveButton.textContent = "CAPTURAR LIVE AO VIVO";
+}
 </script>
 </body>
 </html>
