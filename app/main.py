@@ -1,9 +1,11 @@
+
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -123,7 +125,9 @@ def download_video(data: DownloadRequest):
             output,
             media_type="video/mp4",
             filename="kick-video.mp4",
-            background=BackgroundTask(shutil.rmtree, temp_dir, ignore_errors=True),
+            background=BackgroundTask(
+                shutil.rmtree, temp_dir, ignore_errors=True
+            ),
         )
 
     except HTTPException:
@@ -133,12 +137,14 @@ def download_video(data: DownloadRequest):
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(
             500,
-            @app.post("/api/live-capture")
+            "Não foi possível processar o vídeo. Verifique o link e tente novamente."
+        )
+
+
+@app.post("/api/live-capture")
 def capture_live(data: DownloadRequest):
     raise HTTPException(
         501,
         "A captura ao vivo ainda não está disponível. "
         "É necessário configurar uma fonte de transmissão autorizada."
     )
-            "Não foi possível processar o vídeo. Verifique o link e tente novamente."
-        )
