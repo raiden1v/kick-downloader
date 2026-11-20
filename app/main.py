@@ -139,23 +139,17 @@ def download_video(data: DownloadRequest):
             500,
             "Não foi possível processar o vídeo. Verifique o link e tente novamente."
         )
-
-
-
-
-    raise HTTPException(
-        501,
-        "A captura ao vivo ainda não está disponível. "
-        
 @app.post("/api/live-capture")
 def capture_live(data: DownloadRequest):
     raise HTTPException(
         status_code=501,
         detail=(
-            "A captura de trechos de uma live ainda depende "
-            "de uma fonte de transmissão autorizada e acessível."
+            "A captura ao vivo ainda depende de uma "
+            "fonte de transmissão autorizada e acessível."
         ),
     )
 
-        "É necessário configurar uma fonte de transmissão autorizada."
-    )
+
+
+
+   
