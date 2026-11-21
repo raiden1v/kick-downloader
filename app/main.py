@@ -2,6 +2,7 @@
 import re
 import shutil
 import tempfile
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -105,9 +106,18 @@ def download_video(data: DownloadRequest):
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            "noprogress": False,
+            "retries": 3,
+            "fragment_retries": 3,
+            "concurrent_fragment_downloads": 4,
+
+            # Usa FFmpeg para baixar transmissões HLS e DASH.
+            "external_downloader": {
+                "m3u8": "ffmpeg",
+                "dash": "ffmpeg",
+            },
         }
 
-        # Baixa somente o intervalo solicitado.
         if start is not None:
             options["download_ranges"] = (
                 yt_dlp.utils.download_range_func(
@@ -119,14 +129,17 @@ def download_video(data: DownloadRequest):
             options["force_keyframes_at_cuts"] = True
 
         with yt_dlp.YoutubeDL(options) as ydl:
-            ydl.download([url])
+            result = ydl.download([url])
+
+        if result != 0:
+            raise RuntimeError("O yt-dlp não conseguiu concluir o download.")
 
         files = [
             f for f in temp_dir.glob("video.*")
             if f.is_file()
             and not f.name.endswith(".part")
             and f.suffix.lower() in (
-                ".mp4", ".mkv", ".webm", ".mov"
+                ".mp4", ".mkv", ".webm", ".mov", ".ts"
             )
         ]
 
@@ -141,8 +154,6 @@ def download_video(data: DownloadRequest):
         if source.suffix.lower() == ".mp4":
             shutil.copy2(source, output)
         else:
-            import subprocess
-
             subprocess.run(
                 [
                     "ffmpeg",
