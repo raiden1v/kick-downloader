@@ -107,10 +107,15 @@ def download_video(data: DownloadRequest):
             "merge_output_format": "mp4",
             "outtmpl": str(temp_dir / "video.%(ext)s"),
             "noplaylist": True,
+
+            # Preferir FFmpeg para transmissões HLS
+            "hls_prefer_native": False,
+
             "quiet": True,
             "no_warnings": True,
             "retries": 3,
             "fragment_retries": 3,
+
             "external_downloader": {
                 "m3u8": "ffmpeg"
             },
