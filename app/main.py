@@ -37,8 +37,10 @@ def parse_time(value):
 
     if len(parts) == 1:
         return int(parts[0])
+
     if len(parts) == 2:
         return int(parts[0]) * 60 + int(parts[1])
+
     if len(parts) == 3:
         return (
             int(parts[0]) * 3600
@@ -98,8 +100,10 @@ def download_video(data: DownloadRequest):
     output = temp_dir / "kick-video.mp4"
 
     try:
+        # Seleciona o melhor formato combinado disponível,
+        # sem limitar a resolução a 720p.
         ydl_options = {
-            "format": "best[height<=720]/best",
+            "format": "best",
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
@@ -112,7 +116,9 @@ def download_video(data: DownloadRequest):
             info = ydl.extract_info(url, download=False)
 
         if not info:
-            raise RuntimeError("Não foi possível localizar a transmissão.")
+            raise RuntimeError(
+                "Não foi possível localizar a transmissão."
+            )
 
         if start is not None:
             media_url = info.get("url")
@@ -135,7 +141,11 @@ def download_video(data: DownloadRequest):
 
             duration = end - start
 
-            command = ["ffmpeg", "-y", "-ss", str(start)]
+            command = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start),
+            ]
 
             if header_text:
                 command += ["-headers", header_text]
@@ -160,11 +170,13 @@ def download_video(data: DownloadRequest):
 
             if result.returncode != 0:
                 print("Erro FFmpeg:", result.stderr[-3000:])
-                raise RuntimeError("Falha ao cortar a transmissão.")
+                raise RuntimeError(
+                    "Falha ao cortar a transmissão."
+                )
 
         else:
             download_options = {
-                "format": "best[height<=720]/best",
+                "format": "best",
                 "outtmpl": str(temp_dir / "video.%(ext)s"),
                 "noplaylist": True,
                 "quiet": True,
