@@ -88,7 +88,10 @@ def download_video(data: DownloadRequest):
             start = parse_time(data.start)
             end = parse_time(data.end)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc)
+            )
 
         if start < 0 or end <= start or end - start > 3600:
             raise HTTPException(
@@ -106,15 +109,10 @@ def download_video(data: DownloadRequest):
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
-            "noprogress": False,
             "retries": 3,
             "fragment_retries": 3,
-            "concurrent_fragment_downloads": 4,
-
-            # Usa FFmpeg para baixar transmissões HLS e DASH.
             "external_downloader": {
-                "m3u8": "ffmpeg",
-                "dash": "ffmpeg",
+                "m3u8": "ffmpeg"
             },
         }
 
@@ -125,21 +123,17 @@ def download_video(data: DownloadRequest):
                     [(start, end)]
                 )
             )
-
             options["force_keyframes_at_cuts"] = True
 
         with yt_dlp.YoutubeDL(options) as ydl:
-            result = ydl.download([url])
-
-        if result != 0:
-            raise RuntimeError("O yt-dlp não conseguiu concluir o download.")
+            ydl.download([url])
 
         files = [
             f for f in temp_dir.glob("video.*")
             if f.is_file()
             and not f.name.endswith(".part")
             and f.suffix.lower() in (
-                ".mp4", ".mkv", ".webm", ".mov", ".ts"
+                ".mp4", ".mkv", ".webm", ".mov"
             )
         ]
 
