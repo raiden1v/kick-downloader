@@ -33,14 +33,12 @@ def parse_time(value):
     parts = value.split(":")
 
     if not all(re.fullmatch(r"\d+", p) for p in parts):
-        raise ValueError("Tempo inválido")
+        raise ValueError("Tempo inválido.")
 
     if len(parts) == 1:
         return int(parts[0])
-
     if len(parts) == 2:
         return int(parts[0]) * 60 + int(parts[1])
-
     if len(parts) == 3:
         return (
             int(parts[0]) * 3600
@@ -48,7 +46,7 @@ def parse_time(value):
             + int(parts[2])
         )
 
-    raise ValueError("Use HH:MM:SS, MM:SS ou segundos")
+    raise ValueError("Use HH:MM:SS, MM:SS ou segundos.")
 
 
 @app.get("/api/health")
@@ -88,10 +86,7 @@ def download_video(data: DownloadRequest):
             start = parse_time(data.start)
             end = parse_time(data.end)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=str(exc)
-            )
+            raise HTTPException(status_code=400, detail=str(exc))
 
         if start < 0 or end <= start or end - start > 3600:
             raise HTTPException(
@@ -100,72 +95,117 @@ def download_video(data: DownloadRequest):
             )
 
     temp_dir = Path(tempfile.mkdtemp(prefix="kick-download-"))
+    output = temp_dir / "kick-video.mp4"
 
     try:
-        options = {
-            "format": "bestvideo+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": str(temp_dir / "video.%(ext)s"),
+        ydl_options = {
+            "format": "best[height<=720]/best",
             "noplaylist": True,
-
-            # Preferir FFmpeg para transmissões HLS
-            "hls_prefer_native": False,
-
             "quiet": True,
             "no_warnings": True,
-            "retries": 3,
-            "fragment_retries": 3,
-
-            "external_downloader": {
-                "m3u8": "ffmpeg"
-            },
+            "skip_download": True,
+            "retries": 2,
+            "socket_timeout": 30,
         }
 
+        with yt_dlp.YoutubeDL(ydl_options) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        if not info:
+            raise RuntimeError("Não foi possível localizar a transmissão.")
+
         if start is not None:
-            options["download_ranges"] = (
-                yt_dlp.utils.download_range_func(
-                    None,
-                    [(start, end)]
+            media_url = info.get("url")
+
+            if not media_url and info.get("requested_formats"):
+                formats = info["requested_formats"]
+                media_url = next(
+                    (f.get("url") for f in formats if f.get("url")),
+                    None
                 )
-            )
-            options["force_keyframes_at_cuts"] = True
 
-        with yt_dlp.YoutubeDL(options) as ydl:
-            ydl.download([url])
+            if not media_url:
+                raise RuntimeError("Fonte de vídeo não encontrada.")
 
-        files = [
-            f for f in temp_dir.glob("video.*")
-            if f.is_file()
-            and not f.name.endswith(".part")
-            and f.suffix.lower() in (
-                ".mp4", ".mkv", ".webm", ".mov"
-            )
-        ]
-
-        if not files:
-            raise RuntimeError(
-                "Não foi possível localizar o vídeo."
+            headers = info.get("http_headers") or {}
+            header_text = "".join(
+                f"{key}: {value}\r\n"
+                for key, value in headers.items()
             )
 
-        source = max(files, key=lambda f: f.stat().st_size)
-        output = temp_dir / "kick-video.mp4"
+            duration = end - start
 
-        if source.suffix.lower() == ".mp4":
-            shutil.copy2(source, output)
-        else:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i", str(source),
-                    "-c:v", "libx264",
-                    "-c:a", "aac",
-                    "-movflags", "+faststart",
-                    str(output),
-                ],
-                check=True,
+            command = ["ffmpeg", "-y", "-ss", str(start)]
+
+            if header_text:
+                command += ["-headers", header_text]
+
+            command += [
+                "-i", media_url,
+                "-t", str(duration),
+                "-map", "0:v:0?",
+                "-map", "0:a:0?",
+                "-c", "copy",
+                "-avoid_negative_ts", "make_zero",
+                "-movflags", "+faststart",
+                str(output),
+            ]
+
+            result = subprocess.run(
+                command,
                 capture_output=True,
+                text=True,
+                timeout=600,
             )
+
+            if result.returncode != 0:
+                print("Erro FFmpeg:", result.stderr[-3000:])
+                raise RuntimeError("Falha ao cortar a transmissão.")
+
+        else:
+            download_options = {
+                "format": "best[height<=720]/best",
+                "outtmpl": str(temp_dir / "video.%(ext)s"),
+                "noplaylist": True,
+                "quiet": True,
+                "no_warnings": True,
+                "retries": 2,
+            }
+
+            with yt_dlp.YoutubeDL(download_options) as ydl:
+                ydl.download([url])
+
+            files = [
+                f for f in temp_dir.glob("video.*")
+                if f.is_file() and f.suffix.lower() in (
+                    ".mp4", ".mkv", ".webm", ".mov"
+                )
+            ]
+
+            if not files:
+                raise RuntimeError("Vídeo não encontrado.")
+
+            source = max(files, key=lambda f: f.stat().st_size)
+
+            if source.suffix.lower() == ".mp4":
+                shutil.copy2(source, output)
+            else:
+                subprocess.run(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", str(source),
+                        "-c:v", "libx264",
+                        "-c:a", "aac",
+                        "-movflags", "+faststart",
+                        str(output),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    timeout=600,
+                )
+
+        if not output.exists() or output.stat().st_size == 0:
+            raise RuntimeError("O arquivo de vídeo ficou vazio.")
 
         return FileResponse(
             output,
@@ -183,15 +223,14 @@ def download_video(data: DownloadRequest):
         raise
 
     except Exception as exc:
-        print(f"Erro ao baixar vídeo: {exc}")
-
+        print(f"Erro ao processar vídeo: {exc}")
         shutil.rmtree(temp_dir, ignore_errors=True)
 
         raise HTTPException(
             status_code=500,
             detail=(
                 "Não foi possível processar o vídeo. "
-                "Verifique o link e tente novamente."
+                "Verifique se a transmissão está disponível."
             )
         )
 
@@ -200,8 +239,5 @@ def download_video(data: DownloadRequest):
 def capture_live(data: DownloadRequest):
     raise HTTPException(
         status_code=501,
-        detail=(
-            "A captura ao vivo ainda depende de uma "
-            "fonte de transmissão autorizada e acessível."
-        ),
+        detail="A captura ao vivo ainda não está disponível."
     )
